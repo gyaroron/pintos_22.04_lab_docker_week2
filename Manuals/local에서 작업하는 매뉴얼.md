@@ -100,7 +100,11 @@ git status --short --branch
 | `origin` | 본인 fork | 팀 저장소 |
 | `upstream` | 팀 저장소 | 팀 저장소: `origin`과 동일 주소 허용 |
 
-## 6. 부모·자식 번호, 담당자와 브랜치를 연결한다
+## 6. 사용자 선택 후 부모·자식 번호와 브랜치를 연결한다
+
+상위 Issue와 모든 Sub-issue의 주 담당자·리뷰어 및 GitHub Assignees는 사용자가 직접 정하기 전까지 공란으로 유지한다. Codex가 순번·계정·브랜치를 기준으로 자동 배정하거나 리뷰 요청을 보내지 않는다. 이 절은 사용자가 실제 작업할 Sub-issue를 선택한 뒤 실행하는 안내다. PR 병합에는 작성자 외 다른 팀원 1명의 유효한 승인이 필요하다.
+
+담당자는 사용자가 이슈 오른쪽 **Assignees**에서 직접 선택·해제한다. 자동화가 기본 브랜치에 병합된 뒤에는 선택을 본문 주 담당자와 상위 이슈 표에 반영하고, 해제하면 다시 공란으로 표시한다. 리뷰어는 자동 배정하지 않는다. [담당자 선택과 자동 갱신](담당자_선택과_자동_갱신.md)을 참고한다.
 
 이슈 번호는 실제 생성된 번호를 입력한다. 아래의 S1~S5는 순번이며 GitHub 이슈 번호가 아니다.
 
@@ -122,7 +126,6 @@ gh api "repos/$TeamRepo/issues/$ParentIssue/sub_issues" --jq '.[] | {number,titl
 자식의 요구사항·완료 조건·의존 작업을 읽고, 다른 팀원이 진행 중인 작업과 담당자를 확인한다.
 
 ```powershell
-gh issue edit $ChildIssue --repo $TeamRepo --add-assignee $Login
 git status --short --branch
 git fetch upstream
 $BaseSha = (git rev-parse upstream/main).Trim()
@@ -286,7 +289,6 @@ push 전에 전체 커밋의 author·committer와 메시지를 확인한다. 계
 PR 본문 파일은 작업 편의를 위한 로컬 문서이며 제품 코드 커밋에 자동 포함하지 않는다. 아래 내용을 실제 결과로 채운다.
 
 ```powershell
-$Reviewer = if ($Login -eq 'gyaroron') { 'haihai1222555-droid' } else { 'gyaroron' }
 $TestedSha = (git rev-parse HEAD).Trim()
 @"
 ## 변경 목적
@@ -310,10 +312,10 @@ notepad.exe 'pr-body.md'
 
 ```powershell
 Get-Content -LiteralPath 'pr-body.md'
-gh pr create --repo $TeamRepo --base main --head "${Login}:$FeatureBranch" --title "[$ChildIssue] 담당 요구사항 요약" --body-file pr-body.md --reviewer $Reviewer
+gh pr create --repo $TeamRepo --base main --head "${Login}:$FeatureBranch" --title "[$ChildIssue] 담당 요구사항 요약" --body-file pr-body.md
 ```
 
-제목의 “담당 요구사항 요약”은 실제 변경 내용으로 바꾼다. PR 생성 결과의 URL에서 팀 저장소, base=`main`, head=본인 작업 브랜치를 확인한다.
+제목의 “담당 요구사항 요약”은 실제 변경 내용으로 바꾼다. PR 생성 결과의 URL에서 팀 저장소, base=`main`, head=본인 작업 브랜치를 확인한다. 리뷰어는 자동 지정하지 않으며 사용자가 정하기 전까지 공란으로 유지한다.
 `gyaroron`의 같은 저장소 작업도 위와 같이 본인 소유자와 작업 브랜치를 명시한다. fork와 팀 저장소의 방향을 뒤집지 않는다.
 칸반 보드에서 자식을 리뷰 대기 상태로 옮긴다. 권한이나 프로젝트 필드 문제로 상태 변경이 안 되면 원인을 기록하고 권한자에게 요청한다.
 

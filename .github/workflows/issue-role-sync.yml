@@ -1,0 +1,32 @@
+name: Sync issue role display
+
+on:
+  issues:
+    types: [opened, assigned, unassigned]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# Every run reconciles the current complete issue snapshot. Pending-run
+# replacement or a burst of events therefore cannot lose a sibling update.
+concurrency:
+  group: issue-role-sync-${{ github.repository }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted default-branch automation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Reconcile Assignees into managed body fields
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/sync-issue-roles.cjs
