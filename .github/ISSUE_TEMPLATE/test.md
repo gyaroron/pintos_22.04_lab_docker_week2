@@ -53,7 +53,7 @@ remote repository = <원격 저장소 주소>
 - 결과·출력·오류 파일의 실제 경로: `build/<TESTS 키>.result`, `.output`, `.errors`
 - 공식 `.result`의 PASS 확인 방법과 실제 실행 여부:
 
-연결 케이스마다 바로 실행할 명령을 첨부한다. 프로그램 종료 코드가 0이라는 조건을 모든 테스트에 일괄 적용하지 않는다. [테스트별 명령 목록](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/blob/main/userprog_테스트별_실행_명령어.md)을 참고한다.
+연결 케이스마다 바로 실행할 명령을 첨부한다. 프로그램 종료 코드가 0이라는 조건을 모든 테스트에 일괄 적용하지 않는다. [테스트별 명령 목록](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/blob/main/Manuals/userprog_테스트별_실행_명령어.md)을 참고한다.
 
 ## 난이도
 
