@@ -4,9 +4,6 @@
 
 ```text
 remote repository = https://github.com/gyaroron/pintos_22.04_lab_docker_week2
-학습 목표: 시스템 프로그래밍 전반 — kernel/user pool, kernel thread,
-user process/user thread, kernel/user stack, rsp·register·CPU,
-semaphore·lock(mutex), thread states와 상태 전이 등
 협업 시나리오: fork
 프로젝트 명: PintOS Week2
 Projects의 공개여부: 공개
@@ -42,9 +39,10 @@ git rev-parse HEAD
 - 상위 이슈 제목은 테스트 소스 파일명이다. 현재 첫 대상은 `args.c`다.
 - 직접 실행되는 테스트, 같은 소스의 보조 프로그램, 연관 테스트를 구분한다. 소스 파일 수를 테스트 수로 세지 않는다.
 - 하위 이슈에는 요구사항·완료 조건·전체 SHA에 고정한 근거·예상 난이도와 이유·학습 목표·이해 질문·NAME-ID를 적는다.
+- 학습 목표는 해당 이슈의 요구사항과 지정한 근거 자료를 연결해 추천한다. 자료 URL·관련 절·확인일·연결 이유를 기록하고, 문서의 직접 설명과 이슈에 연결한 판단을 구분한다.
 - 한 작업의 주 담당자는 1명이고 리뷰어는 다른 1명이다. 현재 두 명은 서로 리뷰한다.
 - 공통 파일·선행 기능을 확인해 분담한다. 하위 이슈 수를 늘리려고 같은 구현을 중복 배정하지 않는다.
-- 요구사항은 관찰 가능한 동작으로 쓴다. 구현 정답·코드·의사코드·알고리즘·메모리 배치 절차를 제공하지 않는다.
+- 요구사항은 관찰 가능한 동작으로 쓰고, 테스트 소스와 공식 판정 기준을 근거로 연결한다.
 - GitHub의 실제 부모·자식 관계를 설정한다. 체크리스트나 번호 언급만으로 관계가 설정되었다고 간주하지 않는다.
 - 테스트 통과와 학습 이해 확인은 따로 기록한다. `args.c` 하나로 전체 학습 목표를 완료했다고 판단하지 않는다.
 
@@ -77,7 +75,7 @@ git switch -c $TaskBranch upstream/main
 git push -u origin $TaskBranch
 ```
 
-`gyaroron`의 커밋은 업로드 전 확인한 사용자 이름·계정 연결 이메일을 author와 committer 모두에 사용한다. 다른 팀원은 본인 계정에 연결된 이름·이메일을 사용한다. 환경 변수·후크와 실제 커밋 메타데이터도 확인하고 AI author·committer·공동 작성자 꼬리말은 넣지 않는다.
+`gyaroron`의 커밋은 업로드 전 확인한 사용자 이름·계정 연결 이메일을 author와 committer 모두에 사용한다. 다른 팀원은 본인 계정에 연결된 이름·이메일을 사용한다. 환경 변수·후크와 실제 커밋 메타데이터도 확인하고 실제 작업자의 계정과 연결된 정보를 기록한다.
 
 ## PR·리뷰·병합
 
