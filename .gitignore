@@ -28,3 +28,7 @@ core
 
 # macOS
 .DS_Store
+
+# Local collaboration drafts
+/.github/ISSUE_TEMPLATE/sub-issue.md
+/하위 이슈 작업.md
