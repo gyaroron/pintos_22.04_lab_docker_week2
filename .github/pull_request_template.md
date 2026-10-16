@@ -13,9 +13,12 @@ Closes #<이 PR에서 완료하는 하위 이슈 번호>
 - Base repository: `gyaroron/pintos_22.04_lab_docker_week2`
 - Base branch: `main`
 - Head repository / branch:
-- 작업 브랜치 형식: `feature/<상위 이슈 번호>/<하위 이슈 번호>`
+- 작업 브랜치 형식: `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>`
+- 상위 공통 작업명 / 이 Sub-issue의 개별 작업명:
 - 주 담당자:
 - 리뷰어: 작성자를 제외한 다른 팀원 1명
+
+<!-- 같은 상위 Issue의 모든 Sub-issue는 issue-<Issue번호>-<상위작업명>을 공유한다. 예: feature/issue-1-args/sub-2-args-none. 이름만으로 이슈가 연결되지는 않으므로 실제 부모·자식 관계와 위 Refs·Closes를 확인한다. 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않고 실제 head 이름을 적는다. -->
 
 ## 검증
 

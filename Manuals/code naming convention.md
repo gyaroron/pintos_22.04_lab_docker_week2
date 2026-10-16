@@ -168,3 +168,6 @@ local repository = C:\Users\V15_G3_ABA_2023\pintos_lab
 각 후보의 직접 근거는 연결 이슈의 전체 SHA 고정 테스트·검사기 링크와 학습 근거에서 확인한다. 현재 새 후보의 코드 적용은 하지 않았다.
 
 <!-- REMAINING-TEST-NAMES-END -->
+
+
+브랜치 이름은 코드 식별자와 구분한다. [브랜치 명명 규칙과 전체 대응표](브랜치_명명_규칙과_이슈별_대응표.md)에서 Issue·Sub-issue별 이름을 확인한다.

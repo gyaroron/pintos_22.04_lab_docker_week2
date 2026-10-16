@@ -50,7 +50,9 @@ git rev-parse HEAD
 
 ## 브랜치와 작업 시작
 
-작업 브랜치는 **`feature/<issue>/<sub_issue>`** 형식이다. 두 값은 각각 실제 상위·하위 이슈 번호다. 제목이나 임의의 로컬 작업 ID를 대신 넣지 않는다.
+작업 브랜치는 **`feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>`** 형식이다. 번호는 실제 GitHub 상위·하위 이슈 번호이며, 작업명은 해당 이슈 본문에 정한 소문자·숫자·하이픈 이름이다. 같은 상위 작업은 하나의 Issue로 관리하고 모든 자식이 같은 `issue-<Issue번호>-<상위작업명>`을 공유한다.
+
+예를 들어 Issue #1(`args`) 아래 두 사람이 #2와 #3을 맡으면 각각 `feature/issue-1-args/sub-2-args-none`, `feature/issue-1-args/sub-3-args-single-multiple`을 사용한다. 부모 전용 구현 브랜치를 추가하지 않는다. 새 이름은 새 작업부터 적용하며, 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않고 해당 이슈에 실제 사용 중인 이름과 PR을 기록한다. 아직 push·PR이 없는 로컬 브랜치만 이름을 바꿀 때는 현재 브랜치를 확인하고 `git branch -m <새이름>`을 사용한다.
 
 아래는 PowerShell 예시다. 위 표의 remote 역할, 깨끗한 작업 트리, 실제 이슈 관계를 먼저 확인한다. `fetch` 후 확인한 팀 기준 SHA를 작업 기록에 남긴다.
 
@@ -60,11 +62,18 @@ $ChildIssue = Read-Host '하위 이슈 번호'
 if ($ParentIssue -notmatch '^[1-9][0-9]*$' -or $ChildIssue -notmatch '^[1-9][0-9]*$') {
     throw '실제 GitHub 이슈 번호를 입력하세요.'
 }
-$TaskBranch = "feature/$ParentIssue/$ChildIssue"
+$ParentSlug = Read-Host '상위 Issue 본문의 상위작업명: 예 args'
+$ChildSlug = Read-Host 'Sub-issue 본문의 개별작업명: 예 args-none'
+if ($ParentSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$' -or $ChildSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
+    throw '본문에 정한 소문자·숫자·하이픈 작업명을 입력하세요.'
+}
+$TaskBranch = "feature/issue-${ParentIssue}-${ParentSlug}/sub-${ChildIssue}-${ChildSlug}"
+git check-ref-format --branch $TaskBranch
+if ($LASTEXITCODE -ne 0) { throw '브랜치 이름 형식을 확인하세요.' }
 git fetch upstream
 if ($LASTEXITCODE -ne 0) { throw '팀 저장소 조회에 실패했습니다.' }
 git rev-parse upstream/main
-git switch -c $TaskBranch upstream/main
+git switch --no-track -c $TaskBranch upstream/main
 ```
 
 브랜치가 이미 있으면 새로 만들지 말고 연결된 작업과 현재 상태를 확인해 이어간다. 최신 팀 코드를 먼저 확인했더라도 자동으로 GitHub 이슈의 Development 연결이 생기지는 않는다. 브랜치·PR의 실제 연결도 확인한다.
@@ -79,7 +88,7 @@ git push -u origin $TaskBranch
 
 ## PR·리뷰·병합
 
-- Base repository는 팀 저장소, base branch는 `main`이다. head는 실제 작업 저장소의 `feature/<상위 번호>/<하위 번호>`다.
+- Base repository는 팀 저장소, base branch는 `main`이다. head는 실제 작업 저장소의 `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>` 또는 이미 진행 중인 실제 브랜치다.
 - PR 본문에서 상위는 `Refs #<상위 번호>`, 완료할 하위 이슈는 `Closes #<하위 번호>`로 연결한다. 상위에 종료 키워드를 붙이지 않는다.
 - 한 PR은 한 하위 이슈를 기본으로 한다. 불가피한 추가 범위는 이유와 영향을 설명한다.
 - 버전·환경·실제 명령·로그와 `PASS / FAIL / 미실행`을 적는다. 미실행, 예시, 과거 캐시, CI 없음은 통과가 아니다.

@@ -79,6 +79,16 @@ remote repository = <원격 저장소 주소>
 
 각 하위 이슈에 주 담당자 1명과 다른 리뷰어 1명을 정한다. 공유 구현 영역·선행 관계를 확인한 뒤 배분한다.
 
+## 하위 작업의 공통 브랜치 명명 안내
+
+- 이 상위 Issue의 공통 작업명: `<소문자·숫자·하이픈 이름>` (예: `args`)
+- 작업 브랜치: `feature/issue-<이 Issue번호>-<공통작업명>/sub-<Sub번호>-<개별작업명>`
+- 각 Sub-issue에 실제 번호·개별 작업명·전체 브랜치 이름을 적고 담당자 개발 저장소에서 작업 시작 시 생성한다.
+
+같은 상위 작업은 이 Issue 하나로 관리한다. 두 사람이 서로 다른 Sub-issue를 맡아도 `issue-<이 Issue번호>-<공통작업명>`은 동일하다. 예를 들어 Issue #1 아래 #2와 #3은 `feature/issue-1-args/sub-2-args-none`, `feature/issue-1-args/sub-3-args-single-multiple`을 사용한다. 부모 전용 구현 브랜치를 추가하지 않는다.
+
+브랜치 이름만으로 GitHub 연결이 만들어지지는 않는다. 실제 Add sub-issue 관계와 PR의 상위 `Refs`·하위 `Closes`를 유지하고 Development 연결도 확인한다. 새 이름은 새 작업부터 사용하며, 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않고 실제 브랜치와 PR을 해당 Sub-issue에 기록한다.
+
 ## 상위 이슈 완료 조건
 
 - [ ] 필요한 하위 이슈가 리뷰·통합되어 실제 부모·자식 관계에 반영되었다.
