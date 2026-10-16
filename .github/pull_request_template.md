@@ -13,9 +13,16 @@ Closes #<이 PR에서 완료하는 하위 이슈 번호>
 - Base repository: `gyaroron/pintos_22.04_lab_docker_week2`
 - Base branch: `main`
 - Head repository / branch:
-- 작업 브랜치 형식: `feature/<상위 이슈 번호>/<하위 이슈 번호>`
+- 작업 브랜치 형식: `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>`
+- 상위 공통 작업명 / 이 Sub-issue의 개별 작업명:
 - 주 담당자:
-- 리뷰어: 작성자를 제외한 다른 팀원 1명
+- 리뷰어:
+
+주 담당자와 리뷰어는 사용자가 정하기 전까지 공란으로 유지한다. 자동화가 자동 배정하거나 특정 계정에 리뷰를 요청하지 않는다. 병합에는 작성자를 제외한 다른 팀원 1명의 유효한 승인이 필요하다.
+
+이슈 담당자는 사용자가 해당 이슈 오른쪽 **Assignees**에서 선택·해제한다. 자동화가 기본 브랜치에 병합된 뒤 선택을 이슈 본문 주 담당자와 상위 이슈 표에 반영하며 해제하면 공란으로 표시한다. 리뷰어는 자동 배정하지 않는다. [담당자 선택과 자동 갱신](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/blob/main/Manuals/담당자_선택과_자동_갱신.md)을 참고한다.
+
+<!-- 같은 상위 Issue의 모든 Sub-issue는 issue-<Issue번호>-<상위작업명>을 공유한다. 예: feature/issue-1-args/sub-2-args-none. 이름만으로 이슈가 연결되지는 않으므로 실제 부모·자식 관계와 위 Refs·Closes를 확인한다. 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않고 실제 head 이름을 적는다. -->
 
 ## 검증
 

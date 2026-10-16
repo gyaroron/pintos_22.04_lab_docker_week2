@@ -107,15 +107,21 @@ test directory = C:\Users\V15_G3_ABA_2023\pintos_lab\pintos\tests\userprog
 
 ## 5. Sub-issue 본문 초안
 
-`ARGS-S1` 등의 초안 ID는 실제 생성 결과에 다음과 같이 연결했다. 현재 배정은 시작용이며 팀에서 요구·공유 범위를 확인해 조정한다. 같은 구현 영역을 다룰 수 있으므로 독립적인 구현으로 기계적으로 병렬 배정하지 않는다.
+`ARGS-S1` 등의 초안 ID는 실제 생성 결과에 다음과 같이 연결했다. 주 담당자와 리뷰어는 사용자가 정하기 전까지 모두 공란으로 유지하며 자동화가 자동 배정하지 않는다. 아래 브랜치 이름은 작업의 대응만 나타내고 담당자를 정하지 않는다. 같은 구현 영역을 다룰 수 있으므로 사용자 선택 후 요구·공유 범위를 확인한다.
 
-| 초안 ID | 실제 하위 이슈 | 초기 담당자 | 리뷰어 | 작업 시작 시 사용할 브랜치 |
+담당자는 사용자가 이슈 오른쪽 **Assignees**에서 직접 선택·해제한다. 자동화가 기본 브랜치에 병합된 뒤에는 선택을 본문 주 담당자와 상위 이슈 표에 반영하고, 해제하면 다시 공란으로 표시한다. 리뷰어는 자동 배정하지 않는다. [담당자 선택과 자동 갱신](담당자_선택과_자동_갱신.md)을 참고한다.
+
+| 초안 ID | 실제 하위 이슈 | 주 담당자 | 리뷰어 | 작업 시작 시 사용할 브랜치 |
 | --- | --- | --- | --- | --- |
-| ARGS-S1 | [#2](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/2) | gyaroron | haihai1222555-droid | `feature/1/2` |
-| ARGS-S2 | [#3](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/3) | haihai1222555-droid | gyaroron | `feature/1/3` |
-| ARGS-S3 | [#4](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/4) | gyaroron | haihai1222555-droid | `feature/1/4` |
-| ARGS-S4 | [#5](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/5) | haihai1222555-droid | gyaroron | `feature/1/5` |
-| ARGS-S5 | [#6](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/6) | haihai1222555-droid | gyaroron | `feature/1/6` |
+| ARGS-S1 | [#2](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/2) |  |  | `feature/issue-1-args/sub-2-args-none` |
+| ARGS-S2 | [#3](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/3) |  |  | `feature/issue-1-args/sub-3-args-single-multiple` |
+| ARGS-S3 | [#4](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/4) |  |  | `feature/issue-1-args/sub-4-args-dbl-space` |
+| ARGS-S4 | [#5](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/5) |  |  | `feature/issue-1-args/sub-5-args-many` |
+| ARGS-S5 | [#6](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/6) |  |  | `feature/issue-1-args/sub-6-args-integration` |
+
+같은 상위 Issue #1(`args`)을 공유하므로 두 사람의 브랜치에서 `issue-1-args`는 같고, `sub-...`는 각자 맡은 Sub-issue를 나타낸다. 부모 자체를 구현하는 별도 브랜치를 만들지 않는다. 번호와 작업명은 [전체 이슈별 대응표](브랜치_명명_규칙과_이슈별_대응표.md)·각 이슈 본문과 맞춘다.
+
+브랜치 이름만으로 GitHub 연결이 만들어지지는 않는다. 실제 부모·자식 관계와 PR의 `Refs #1`, 완료하는 자식의 `Closes #번호`를 유지한다. 새 이름은 새 작업부터 사용하고 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않으며, 실제 브랜치와 PR을 해당 Sub-issue에 기록한다.
 
 ### ARGS-S1 — args.c: 추가 인자 없는 실행의 기본 계약 충족
 

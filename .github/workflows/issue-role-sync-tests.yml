@@ -1,0 +1,25 @@
+name: Test issue role display
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/issue-role-sync*.yml'
+  push:
+    branches: [gyaroron/issue-subissue-branch-names]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/issue-role-sync*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test role updates without touching GitHub data
+        run: node .github/scripts/tests/sync-issue-roles.test.cjs

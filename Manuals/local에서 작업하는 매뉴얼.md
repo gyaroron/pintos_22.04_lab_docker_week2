@@ -14,7 +14,7 @@
 | 첫 상위 Issue | `args.c` [#1](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/1) |
 | 첫 작업 단위 | 상위 Issue에 연결된 Sub-issue 5개 중 본인 담당 1개 |
 | 이후 작업 단위 | 각 테스트 소스의 상위 Issue에 연결된 본인 담당 Sub-issue 1개 |
-| 브랜치 이름 | `feature/<부모번호>/<자식번호>` |
+| 브랜치 이름 | `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>` |
 | 기본 흐름 | 개인 fork의 작업 브랜치 → 팀 저장소 `main`으로 PR → 상대방 리뷰 → 권한자 merge |
 
 `gyaroron`은 팀 저장소의 소유자이므로 같은 저장소를 다시 fork하지 않는다. 본인 팀 저장소의 작업 브랜치에서 PR을 만든다.
@@ -100,11 +100,17 @@ git status --short --branch
 | `origin` | 본인 fork | 팀 저장소 |
 | `upstream` | 팀 저장소 | 팀 저장소: `origin`과 동일 주소 허용 |
 
-## 6. 부모·자식 번호, 담당자와 브랜치를 연결한다
+## 6. 사용자 선택 후 부모·자식 번호와 브랜치를 연결한다
+
+상위 Issue와 모든 Sub-issue의 주 담당자·리뷰어 및 GitHub Assignees는 사용자가 직접 정하기 전까지 공란으로 유지한다. 자동화가 순번·계정·브랜치를 기준으로 자동 배정하거나 리뷰 요청을 보내지 않는다. 이 절은 사용자가 실제 작업할 Sub-issue를 선택한 뒤 실행하는 안내다. PR 병합에는 작성자 외 다른 팀원 1명의 유효한 승인이 필요하다.
+
+담당자는 사용자가 이슈 오른쪽 **Assignees**에서 직접 선택·해제한다. 자동화가 기본 브랜치에 병합된 뒤에는 선택을 본문 주 담당자와 상위 이슈 표에 반영하고, 해제하면 다시 공란으로 표시한다. 리뷰어는 자동 배정하지 않는다. [담당자 선택과 자동 갱신](담당자_선택과_자동_갱신.md)을 참고한다.
 
 이슈 번호는 실제 생성된 번호를 입력한다. 아래의 S1~S5는 순번이며 GitHub 이슈 번호가 아니다.
 
-현재 연결은 S1=#2, S2=#3, S3=#4, S4=#5, S5=#6이다. 예를 들어 #2 작업 브랜치는 `feature/1/2`다. 이후 새로운 이슈에는 그때 생성된 실제 번호를 사용한다.
+현재 연결은 S1=#2, S2=#3, S3=#4, S4=#5, S5=#6이다. 예를 들어 #2 작업 브랜치는 `feature/issue-1-args/sub-2-args-none`, #3은 `feature/issue-1-args/sub-3-args-single-multiple`이다. 두 사람은 같은 상위 Issue #1을 공유하면서 서로 다른 Sub-issue를 맡는다. `issue-1-args`는 공통 상위 작업을 나타내며, 부모 자체를 구현하는 별도 브랜치를 만들라는 뜻이 아니다.
+
+이후 작업도 실제 번호와 각 이슈 본문에 정한 영문 작업명을 함께 사용한다. 작업명은 소문자·숫자·하이픈으로 적고, 같은 상위 Issue의 모든 Sub-issue에는 같은 상위 작업명을 사용한다. [이슈별 브랜치 대응표](브랜치_명명_규칙과_이슈별_대응표.md)에서 전체 이름을 확인한다. 이름만으로 GitHub 연결이 생성되지 않으므로 실제 부모·자식 관계와 PR 연결은 별도로 유지한다.
 
 ```powershell
 $ParentIssue = Read-Host '본인이 맡은 테스트의 상위 Issue 번호: 숫자만'
@@ -120,13 +126,17 @@ gh api "repos/$TeamRepo/issues/$ParentIssue/sub_issues" --jq '.[] | {number,titl
 자식의 요구사항·완료 조건·의존 작업을 읽고, 다른 팀원이 진행 중인 작업과 담당자를 확인한다.
 
 ```powershell
-gh issue edit $ChildIssue --repo $TeamRepo --add-assignee $Login
 git status --short --branch
 git fetch upstream
 $BaseSha = (git rev-parse upstream/main).Trim()
 $BaseSha
-$FeatureBranch = "feature/$ParentIssue/$ChildIssue"
-git switch -c $FeatureBranch upstream/main
+$ParentSlug = Read-Host '상위 Issue 본문의 상위작업명: 예 args'
+$ChildSlug = Read-Host 'Sub-issue 본문의 개별작업명: 예 args-none'
+if ($ParentSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$' -or $ChildSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$') { throw '본문에 정한 소문자·숫자·하이픈 작업명을 입력하세요.' }
+$FeatureBranch = "feature/issue-${ParentIssue}-${ParentSlug}/sub-${ChildIssue}-${ChildSlug}"
+git check-ref-format --branch $FeatureBranch
+if ($LASTEXITCODE -ne 0) { throw '브랜치 이름 형식을 확인하세요.' }
+git switch --no-track -c $FeatureBranch upstream/main
 git branch --show-current
 git status --short --branch
 ```
@@ -136,6 +146,8 @@ git status --short --branch
 작업 기록에는 `upstream/main@$BaseSha`를 시작 기준으로 남긴다. 이후 fetch로 `upstream/main`이 바뀌어도 이 시작 기준을 덮어쓰지 않는다.
 칸반 보드에서 본인 자식을 진행 중 상태로 옮긴다. 프로젝트에 항목이 없으면 해당 Sub-issue를 추가하고 담당자를 확인한다.
 상위 Issue는 자식 전체의 진행 상태를 요약한다. 한 자식만 끝났다고 부모를 닫지 않는다.
+
+새 규칙은 새 작업 브랜치부터 사용한다. 이미 push했거나 PR이 있는 브랜치는 이름 변경·삭제 없이 이어가며, 해당 Sub-issue에 실제 브랜치와 PR을 적는다. 아직 원격에 올리지 않았고 PR도 없는 로컬 브랜치만 변경하려면 현재 브랜치와 작업 상태를 확인한 뒤 `git branch -m $FeatureBranch`로 이름을 바꿀 수 있다. 이 명령은 원격 브랜치나 GitHub의 연결을 바꾸지 않는다.
 
 ## 7. Git 작성자와 커미터를 본인으로 확인한다
 
@@ -277,7 +289,6 @@ push 전에 전체 커밋의 author·committer와 메시지를 확인한다. 계
 PR 본문 파일은 작업 편의를 위한 로컬 문서이며 제품 코드 커밋에 자동 포함하지 않는다. 아래 내용을 실제 결과로 채운다.
 
 ```powershell
-$Reviewer = if ($Login -eq 'gyaroron') { 'haihai1222555-droid' } else { 'gyaroron' }
 $TestedSha = (git rev-parse HEAD).Trim()
 @"
 ## 변경 목적
@@ -301,10 +312,10 @@ notepad.exe 'pr-body.md'
 
 ```powershell
 Get-Content -LiteralPath 'pr-body.md'
-gh pr create --repo $TeamRepo --base main --head "${Login}:$FeatureBranch" --title "[$ChildIssue] 담당 요구사항 요약" --body-file pr-body.md --reviewer $Reviewer
+gh pr create --repo $TeamRepo --base main --head "${Login}:$FeatureBranch" --title "[$ChildIssue] 담당 요구사항 요약" --body-file pr-body.md
 ```
 
-제목의 “담당 요구사항 요약”은 실제 변경 내용으로 바꾼다. PR 생성 결과의 URL에서 팀 저장소, base=`main`, head=본인 작업 브랜치를 확인한다.
+제목의 “담당 요구사항 요약”은 실제 변경 내용으로 바꾼다. PR 생성 결과의 URL에서 팀 저장소, base=`main`, head=본인 작업 브랜치를 확인한다. 리뷰어는 자동 지정하지 않으며 사용자가 정하기 전까지 공란으로 유지한다.
 `gyaroron`의 같은 저장소 작업도 위와 같이 본인 소유자와 작업 브랜치를 명시한다. fork와 팀 저장소의 방향을 뒤집지 않는다.
 칸반 보드에서 자식을 리뷰 대기 상태로 옮긴다. 권한이나 프로젝트 필드 문제로 상태 변경이 안 되면 원인을 기록하고 권한자에게 요청한다.
 
@@ -323,7 +334,7 @@ GitHub 승인 리뷰, 저장소 보호 규칙 충족, CI 통과, 로컬 테스�
 
 ## 12. 충돌이 발생했을 때
 
-먼저 작업 내용을 커밋하고 작업 트리가 깨끗한지 확인한다. 현재 브랜치는 `feature/<부모번호>/<자식번호>`여야 한다.
+먼저 작업 내용을 커밋하고 작업 트리가 깨끗한지 확인한다. 현재 브랜치는 담당 Sub-issue에 적힌 `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>` 또는 이미 진행 중인 실제 브랜치여야 한다.
 
 ```powershell
 git branch --show-current
@@ -394,7 +405,7 @@ if ($ForkMainSha -ne $TeamMainSha) { throw 'origin/main과 팀 main이 다릅니
 `merge --ff-only`가 성공해도 로컬이 이미 앞서 있으면 SHA가 다를 수 있다. 위의 실제 SHA 비교까지 확인해야 동기화 완료다.
 명령이 실패하거나 SHA가 다르면 강제 push로 덮어쓰지 않는다. 변경·이력을 확인하고 필요하면 새 clone에서 작업을 재개한다.
 원격이 그 사이 바뀌었다면 다시 fetch하여 같은 시점의 값을 비교한다. 동기화한 `main@전체 SHA`와 확인 시점을 기록한다.
-다음 자식 작업은 최신 `upstream/main`에서 **새로운** `feature/<부모번호>/<자식번호>`를 만들어 시작한다.
+다음 자식 작업은 최신 `upstream/main`에서 **새로운** `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>`을 만들어 시작한다.
 한 자식의 merge 후 완료 조건·연결된 PR·테스트 근거와 보드 상태를 확인한다. 부모는 연결된 모든 자식의 완료와 해당 케이스 전체 검증이 확인된 뒤 닫는다. 첫 부모 `args.c`는 자식 5개의 완료와 `args-*` 5종의 통합 검증이 필요하다.
 
 ## 14. 매 작업에서 남길 최소 기록

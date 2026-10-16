@@ -40,7 +40,8 @@ git rev-parse HEAD
 - 직접 실행되는 테스트, 같은 소스의 보조 프로그램, 연관 테스트를 구분한다. 소스 파일 수를 테스트 수로 세지 않는다.
 - 하위 이슈에는 요구사항·완료 조건·전체 SHA에 고정한 근거·예상 난이도와 이유·학습 목표·이해 질문·NAME-ID를 적는다.
 - 학습 목표는 해당 이슈의 요구사항과 지정한 근거 자료를 연결해 추천한다. 자료 URL·관련 절·확인일·연결 이유를 기록하고, 문서의 직접 설명과 이슈에 연결한 판단을 구분한다.
-- 한 작업의 주 담당자는 1명이고 리뷰어는 다른 1명이다. 현재 두 명은 서로 리뷰한다.
+- 상위 Issue와 모든 Sub-issue의 주 담당자·리뷰어 및 GitHub Assignees는 사용자가 직접 정하기 전까지 공란으로 유지한다. 자동화가 계정·순번·브랜치를 기준으로 자동 배정하거나 리뷰 요청을 보내지 않는다. 사용자 선택 후 한 작업의 주 담당자는 1명을 기본으로 하며, PR 병합에는 작성자를 제외한 다른 팀원 1명의 유효한 승인이 필요하다.
+- 담당자는 사용자가 이슈 오른쪽 **Assignees**에서 직접 선택·해제한다. 자동화가 기본 브랜치에 병합된 뒤 선택을 본문 주 담당자와 상위 이슈 표에 반영하며 해제하면 공란으로 표시한다. 리뷰어는 자동 배정하지 않는다. [담당자 선택과 자동 갱신](담당자_선택과_자동_갱신.md)을 참고한다.
 - 공통 파일·선행 기능을 확인해 분담한다. 하위 이슈 수를 늘리려고 같은 구현을 중복 배정하지 않는다.
 - 요구사항은 관찰 가능한 동작으로 쓰고, 테스트 소스와 공식 판정 기준을 근거로 연결한다.
 - GitHub의 실제 부모·자식 관계를 설정한다. 체크리스트나 번호 언급만으로 관계가 설정되었다고 간주하지 않는다.
@@ -50,7 +51,9 @@ git rev-parse HEAD
 
 ## 브랜치와 작업 시작
 
-작업 브랜치는 **`feature/<issue>/<sub_issue>`** 형식이다. 두 값은 각각 실제 상위·하위 이슈 번호다. 제목이나 임의의 로컬 작업 ID를 대신 넣지 않는다.
+작업 브랜치는 **`feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>`** 형식이다. 번호는 실제 GitHub 상위·하위 이슈 번호이며, 작업명은 해당 이슈 본문에 정한 소문자·숫자·하이픈 이름이다. 같은 상위 작업은 하나의 Issue로 관리하고 모든 자식이 같은 `issue-<Issue번호>-<상위작업명>`을 공유한다.
+
+예를 들어 Issue #1(`args`) 아래 두 사람이 #2와 #3을 맡으면 각각 `feature/issue-1-args/sub-2-args-none`, `feature/issue-1-args/sub-3-args-single-multiple`을 사용한다. 부모 전용 구현 브랜치를 추가하지 않는다. 새 이름은 새 작업부터 적용하며, 이미 push·PR이 있는 브랜치는 자동 변경·삭제하지 않고 해당 이슈에 실제 사용 중인 이름과 PR을 기록한다. 아직 push·PR이 없는 로컬 브랜치만 이름을 바꿀 때는 현재 브랜치를 확인하고 `git branch -m <새이름>`을 사용한다.
 
 아래는 PowerShell 예시다. 위 표의 remote 역할, 깨끗한 작업 트리, 실제 이슈 관계를 먼저 확인한다. `fetch` 후 확인한 팀 기준 SHA를 작업 기록에 남긴다.
 
@@ -60,11 +63,18 @@ $ChildIssue = Read-Host '하위 이슈 번호'
 if ($ParentIssue -notmatch '^[1-9][0-9]*$' -or $ChildIssue -notmatch '^[1-9][0-9]*$') {
     throw '실제 GitHub 이슈 번호를 입력하세요.'
 }
-$TaskBranch = "feature/$ParentIssue/$ChildIssue"
+$ParentSlug = Read-Host '상위 Issue 본문의 상위작업명: 예 args'
+$ChildSlug = Read-Host 'Sub-issue 본문의 개별작업명: 예 args-none'
+if ($ParentSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$' -or $ChildSlug -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
+    throw '본문에 정한 소문자·숫자·하이픈 작업명을 입력하세요.'
+}
+$TaskBranch = "feature/issue-${ParentIssue}-${ParentSlug}/sub-${ChildIssue}-${ChildSlug}"
+git check-ref-format --branch $TaskBranch
+if ($LASTEXITCODE -ne 0) { throw '브랜치 이름 형식을 확인하세요.' }
 git fetch upstream
 if ($LASTEXITCODE -ne 0) { throw '팀 저장소 조회에 실패했습니다.' }
 git rev-parse upstream/main
-git switch -c $TaskBranch upstream/main
+git switch --no-track -c $TaskBranch upstream/main
 ```
 
 브랜치가 이미 있으면 새로 만들지 말고 연결된 작업과 현재 상태를 확인해 이어간다. 최신 팀 코드를 먼저 확인했더라도 자동으로 GitHub 이슈의 Development 연결이 생기지는 않는다. 브랜치·PR의 실제 연결도 확인한다.
@@ -79,7 +89,7 @@ git push -u origin $TaskBranch
 
 ## PR·리뷰·병합
 
-- Base repository는 팀 저장소, base branch는 `main`이다. head는 실제 작업 저장소의 `feature/<상위 번호>/<하위 번호>`다.
+- Base repository는 팀 저장소, base branch는 `main`이다. head는 실제 작업 저장소의 `feature/issue-<Issue번호>-<상위작업명>/sub-<Sub번호>-<개별작업명>` 또는 이미 진행 중인 실제 브랜치다.
 - PR 본문에서 상위는 `Refs #<상위 번호>`, 완료할 하위 이슈는 `Closes #<하위 번호>`로 연결한다. 상위에 종료 키워드를 붙이지 않는다.
 - 한 PR은 한 하위 이슈를 기본으로 한다. 불가피한 추가 범위는 이유와 영향을 설명한다.
 - 버전·환경·실제 명령·로그와 `PASS / FAIL / 미실행`을 적는다. 미실행, 예시, 과거 캐시, CI 없음은 통과가 아니다.
@@ -111,4 +121,4 @@ git push -u origin $TaskBranch
 
 실제로 실행하는 CI가 있을 때에만 해당 검사를 필수로 지정한다. 이 파일을 추가하는 것만으로 저장소 권한·보호 규칙·보드 자동화가 활성화되지는 않는다. 설정 요청 성공과 최종 적용 확인을 구분해 기록한다.
 
-인원이 늘어도 승인 수를 자동으로 `n-1`로 늘리지 않는다. 작업마다 주 담당자와 다른 리뷰어를 정하고, 변경 위험과 실제 리뷰 가능 인원에 맞춰 정책을 합의한다.
+인원이 늘어도 승인 수를 자동으로 `n-1`로 늘리지 않는다. 작업별 주 담당자와 리뷰어는 사용자 결정 후에만 기록하고, 변경 위험과 실제 리뷰 가능 인원에 맞춰 정책을 합의한다.
