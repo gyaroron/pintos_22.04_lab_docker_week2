@@ -13,6 +13,7 @@
 | 칸반 보드 | 공개 `PintOS Week2`, `https://github.com/users/gyaroron/projects/10` 하나에 계속 누적 |
 | 첫 상위 Issue | `args.c` [#1](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/issues/1) |
 | 첫 작업 단위 | 상위 Issue에 연결된 Sub-issue 5개 중 본인 담당 1개 |
+| 이후 작업 단위 | 각 테스트 소스의 상위 Issue에 연결된 본인 담당 Sub-issue 1개 |
 | 브랜치 이름 | `feature/<부모번호>/<자식번호>` |
 | 기본 흐름 | 개인 fork의 작업 브랜치 → 팀 저장소 `main`으로 PR → 상대방 리뷰 → 권한자 merge |
 
@@ -106,7 +107,7 @@ git status --short --branch
 현재 연결은 S1=#2, S2=#3, S3=#4, S4=#5, S5=#6이다. 예를 들어 #2 작업 브랜치는 `feature/1/2`다. 이후 새로운 이슈에는 그때 생성된 실제 번호를 사용한다.
 
 ```powershell
-$ParentIssue = Read-Host 'args.c 상위 Issue 번호: 숫자만'
+$ParentIssue = Read-Host '본인이 맡은 테스트의 상위 Issue 번호: 숫자만'
 $ChildIssue = Read-Host '본인이 맡을 Sub-issue 번호: 숫자만'
 if ($ParentIssue -notmatch '^[1-9][0-9]*$' -or $ChildIssue -notmatch '^[1-9][0-9]*$') { throw '실제 양의 정수 이슈 번호를 입력하세요.' }
 gh issue view $ParentIssue --repo $TeamRepo --web
@@ -114,7 +115,7 @@ gh issue view $ChildIssue --repo $TeamRepo --web
 gh api "repos/$TeamRepo/issues/$ParentIssue/sub_issues" --jq '.[] | {number,title,assignees:[.assignees[].login]}'
 ```
 
-부모가 `args.c`이고 자식이 그 부모에 실제로 연결되어 있는지 웹 화면과 위 목록에서 확인한다.
+부모가 맡은 테스트 소스(첫 예시는 `args.c`)이고 자식이 그 부모에 실제로 연결되어 있는지 웹 화면과 위 목록에서 확인한다.
 본문에 `Parent #번호`만 적혀 있는 것으로 GitHub의 실제 Sub-issue 관계가 생겼다고 간주하지 않는다.
 자식의 요구사항·완료 조건·의존 작업을 읽고, 다른 팀원이 진행 중인 작업과 담당자를 확인한다.
 
@@ -176,6 +177,31 @@ git var GIT_COMMITTER_IDENT
 범위를 넘는 수정이 필요하면 대상·이유·변경안·영향을 먼저 제시한다. 테스트 소스나 `.ck` 기대값을 약화하여 PASS를 만들지 않는다.
 공유 파일을 수정할 때는 상대방과 수정 영역·의존 순서를 조정한다. 서로 다른 Sub-issue라도 같은 파일에서 충돌할 수 있다.
 
+### 8-1. 담당 케이스의 명령을 확인한다
+
+**모든 상위 Issue와 Sub-issue에 각 테스트 케이스의 실행 방법을 첨부한다.** 상위에는 연결된 전체 케이스를, 하위에는 담당 케이스와 회귀 범위를 적는다. 실제 테스트 이름·개별 명령·결과 파일·복수 선택 및 통합 실행 방법은 [userprog_테스트별_실행_명령어.md](userprog_테스트별_실행_명령어.md)에서 찾는다. 같은 C를 사용하는 케이스도 실제 `TESTS` 키별로 구분한다.
+
+이슈 본문에는 다음 항목을 적는다.
+
+- 환경: 저장소 README에 따라 활성화한 **Linux DevContainer의 Bash**.
+- 실행 위치: **저장소 루트의 `pintos/userprog`**.
+- 각 케이스의 정확한 `TESTS` 키와 바로 실행할 개별 명령.
+- 해당 위치 기준 `build/<TESTS 키>.result`, `.output`, `.errors` 경로.
+- 원본 `.ck`의 허용 결과, `.result`의 `PASS` 확인 방법, 필요한 회귀 범위.
+- 선택 케이스·추가 빌드 설정·시간·메모리 조건, 실제 실행 여부와 검증한 전체 SHA.
+
+예를 들어 `create-normal.c`에 대응하는 한 케이스는 다음과 같이 실행한다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/pintos/userprog"
+make -B check TESTS='tests/userprog/create-normal'
+cat build/tests/userprog/create-normal.result
+```
+
+같은 실행 위치에서 `build/tests/userprog/create-normal.output`은 테스트 출력, `build/tests/userprog/create-normal.errors`는 오류 출력을 담는다. `.result`가 `PASS`인지 확인하고 세 파일의 경로와 필요한 내용을 PR에 첨부한다. 빌드 오류로 결과 파일이 생성되지 않았다면 그 상태를 적는다. 이전 실행의 결과 파일과 이번 결과를 혼동하지 않는다.
+
+### 8-2. 첫 범위인 args.c를 검증한다
+
 | 자식 순번 | 확인할 테스트 |
 |---|---|
 | S1 | `args-none` |
@@ -203,6 +229,24 @@ make -B check TESTS='tests/userprog/args-none tests/userprog/args-single tests/u
 이 문서 작성 시 위 테스트는 실행하지 않았다. 도구 설치 오류·빌드 실패·테스트 실패·미실행을 서로 구분하여 기록한다.
 결과에는 실행 환경, 명령, 실행 시점, 검증한 전체 커밋 SHA, 각 테스트의 `.result`와 필요한 출력 근거를 남긴다.
 커밋 전 실행했다면 `git rev-parse HEAD`는 수정 전 커밋이므로 “작업 트리 변경 포함”을 명시한다. 커밋 SHA만으로 검증했다고 쓰지 않는다.
+
+### 8-3. 기본·선택 범위와 공식 판정을 구분한다
+
+현재 userprog 등록 범위는 **기본 64개와 선택 `dup2` 2개, 총 66개**다. 기존 `args-*` 5개 외에 기본 59개와 선택 2개가 있다. `child-*` 등 보조 C와 미등록 `null.ck`를 독립 실행 테스트로 세지 않는다. 담당 Issue에 기본·선택 여부를 명시하고 케이스별 명령을 첨부한다.
+
+선택 `dup2`는 기본 `TEST_SUBDIRS`에 포함되지 않는다. 다음은 `Make.vars`를 바꾸지 않고 해당 실행에만 필요한 설정을 더하는 예다. 다른 선택 케이스는 마지막 `TESTS` 키를 명령 목록의 실제 값으로 바꾼다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/pintos/userprog"
+make -B check TEST_SUBDIRS='tests/userprog tests/filesys/base tests/userprog/no-vm tests/threads tests/userprog/dup2' TDEFINE=-DEXTRA2 TESTS='tests/userprog/dup2/dup2-simple'
+cat build/tests/userprog/dup2/dup2-simple.result
+```
+
+`no-vm/multi-oom`은 등록된 `TIMEOUT = 600 -m 20` 조건을 유지한다. 임의로 짧은 제한 시간이나 다른 메모리를 강제하지 않는다.
+
+완료 판단은 공식 `.ck`가 만든 **각 `.result`의 `PASS`**를 기준으로 한다. 모든 프로그램이 `exit(0)`이어야 하는 것은 아니다. `exit` 테스트의 57, 오류 입력 테스트의 의도된 -1, `halt`의 시스템 종료 등은 해당 판정 파일의 기대 조건을 따른다. `make` 종료 코드, 프로그램 종료 상태, 공식 테스트 판정은 각각 구분해 기록한다.
+
+문서화한 명령은 실행 결과가 아니다. 각 케이스를 `PASS / FAIL / 미실행 / 환경·빌드 오류`로 표시하고, 실행한 경우 시점·환경·전체 SHA·미커밋 변경 포함 여부와 `.result`·`.output`·`.errors`를 함께 남긴다. 개별 명령이나 기본 범위만 실행했다면 선택 테스트까지 통과했다고 쓰지 않는다.
 
 ## 9. 검토한 변경만 커밋하고 본인 원격에 push한다
 
@@ -243,8 +287,11 @@ Closes https://github.com/$TeamRepo/issues/$ChildIssue
 
 ## 검증
 - 검증 대상 커밋: $TestedSha
-- 실행 환경과 명령: 실제 실행 내용을 작성합니다.
-- 테스트별 결과: PASS / FAIL / 미실행을 구분하여 작성합니다.
+- 실행 환경과 위치: Linux DevContainer Bash / 저장소 루트의 pintos/userprog인지 확인합니다.
+- 케이스별 정확한 TESTS 키와 실행 명령: 실제 실행 내용을 작성합니다.
+- 테스트별 결과: PASS / FAIL / 미실행 / 환경·빌드 오류를 구분하여 작성합니다.
+- 결과·로그: 케이스별 .result 판정과 .output·.errors 경로를 작성합니다.
+- 미커밋 변경 포함 여부와 선택·시간·메모리 설정: 실제 검증 조건을 작성합니다.
 - 아직 남은 조건과 리뷰 요청: 실제 내용을 작성합니다.
 "@ | Set-Content -LiteralPath 'pr-body.md' -Encoding utf8
 notepad.exe 'pr-body.md'
@@ -348,13 +395,13 @@ if ($ForkMainSha -ne $TeamMainSha) { throw 'origin/main과 팀 main이 다릅니
 명령이 실패하거나 SHA가 다르면 강제 push로 덮어쓰지 않는다. 변경·이력을 확인하고 필요하면 새 clone에서 작업을 재개한다.
 원격이 그 사이 바뀌었다면 다시 fetch하여 같은 시점의 값을 비교한다. 동기화한 `main@전체 SHA`와 확인 시점을 기록한다.
 다음 자식 작업은 최신 `upstream/main`에서 **새로운** `feature/<부모번호>/<자식번호>`를 만들어 시작한다.
-한 자식의 merge 후 완료 조건·연결된 PR·테스트 근거와 보드 상태를 확인한다. 부모 `args.c`는 자식 5개의 완료와 전체 검증이 확인된 뒤 닫는다.
+한 자식의 merge 후 완료 조건·연결된 PR·테스트 근거와 보드 상태를 확인한다. 부모는 연결된 모든 자식의 완료와 해당 케이스 전체 검증이 확인된 뒤 닫는다. 첫 부모 `args.c`는 자식 5개의 완료와 `args-*` 5종의 통합 검증이 필요하다.
 
 ## 14. 매 작업에서 남길 최소 기록
 
 - 담당 부모·자식 번호, 담당자, 작업 브랜치, 시작 기준 `upstream/main@전체 SHA`.
 - 변경 이유·영향·본인이 이해한 내용과 아직 확인하지 못한 내용.
-- 검증한 커밋 또는 작업 트리 상태, 실제 명령·환경·테스트별 결과.
+- 검증한 커밋 또는 작업 트리 상태, Linux Bash 실행 위치·정확한 `TESTS` 키·실제 명령·테스트별 결과와 `.result`/`.output`/`.errors` 경로.
 - PR 주소, 상대방 승인 여부, merge 결과와 이후 확인한 `main@전체 SHA`.
 - 로컬 기록, 원격 push, PR 승인, merge, 테스트 통과를 각각 구분한 상태.
 

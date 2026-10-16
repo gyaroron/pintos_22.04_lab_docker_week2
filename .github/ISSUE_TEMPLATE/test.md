@@ -43,6 +43,18 @@ remote repository = <원격 저장소 주소>
 - 미실행 또는 미확인 내용:
 - 공통 선행 기능·다른 이슈와의 의존성:
 
+## 케이스별 테스트 실행 방법
+
+- 환경: Linux DevContainer의 Bash
+- 실행 위치: 저장소 루트의 `pintos/userprog`
+- 각 케이스의 정확한 `TESTS` 키와 개별 실행 명령:
+- 여러 케이스를 함께 확인할 명령과 회귀 범위:
+- 선택 테스트 활성화 조건·추가 플래그·시간·메모리 조건:
+- 결과·출력·오류 파일의 실제 경로: `build/<TESTS 키>.result`, `.output`, `.errors`
+- 공식 `.result`의 PASS 확인 방법과 실제 실행 여부:
+
+연결 케이스마다 바로 실행할 명령을 첨부한다. 프로그램 종료 코드가 0이라는 조건을 모든 테스트에 일괄 적용하지 않는다. [테스트별 명령 목록](https://github.com/gyaroron/pintos_22.04_lab_docker_week2/blob/main/userprog_테스트별_실행_명령어.md)을 참고한다.
+
 ## 난이도
 
 - 라벨: `난이도 ⭐`부터 `난이도 ⭐⭐⭐⭐⭐` 중 하나
