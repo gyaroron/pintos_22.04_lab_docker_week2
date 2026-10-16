@@ -39,7 +39,7 @@ syscall_init (void) {
 
 /* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) {
+syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
 	// TODO: Your implementation goes here.
 	switch (f -> R.rax)
 	{
