@@ -26,7 +26,7 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
-static volatile bool is_main_loop = false;
+static volatile bool is_main_loop = false; // 자식 프로세스가 끝났는지 확인할 전역 플래그 선언
 
 /* General process initializer for initd and other process. */
 static void
@@ -206,9 +206,9 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 
-	while (!is_main_loop)
+	while (!is_main_loop) // 자식 프로세스가 종료되어 플래그가 true가 될 때까지 메인 스레드가 CPU를 양보하며 대기
 	{
-		thread_yield();
+		thread_yield(); // 다른 스레드(자식 프로세스)에게 실행권 양보
 	}
 
 	return -1;
@@ -223,9 +223,9 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
-	is_main_loop = true;
+	is_main_loop = true; // 프로세스가 종료될 때 플래그를 true로 바꿔 process_wait의 대기 루프를 탈출시킴
 
-	process_cleanup ();
+	process_cleanup (); 
 }
 
 /* Free the current process's resources. */
@@ -426,18 +426,18 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 
-	if_ -> rsp = if_ -> rsp - 10; //if - interrupt frame
-	memcpy(if_ -> rsp, "args-none", 10);
-	uintptr_t args_save = if_ -> rsp;
-	if_ -> rsp = if_ -> rsp & ~7;
-	if_ -> rsp = if_ -> rsp - 8;
-	memset(if_ -> rsp, 0, 8);
-	if_ -> rsp = if_ -> rsp - 8;
-	memcpy(if_ -> rsp, &args_save, 8);
-	if_ -> R.rsi = if_ -> rsp;
-	if_ -> R.rdi = 1;
-	if_ -> rsp = if_ -> rsp - 8;
-	memset(if_ -> rsp, 0, 8);
+	if_ -> rsp = if_ -> rsp - 10; //1. "args-none\0" 문자열 크기(10바이트)만큼 스택 포인터를 내려 공간 확보. if - interrupt frame 
+	memcpy(if_ -> rsp, "args-none", 10); // 2. 확보한 스택 공간에 "args-none\0" 문자열 데이터 복사
+	uintptr_t args_save = if_ -> rsp; // 3. 방금 넣은 문자열의 스택 시작 주소를 임시 보관 (argv[0] 값으로 쓰기 위함)
+	if_ -> rsp = if_ -> rsp & ~7; // 4. x86-64 CPU 규격에 맞게 스택 주소를 8바이트 배수로 내림 정렬 (패딩)
+	if_ -> rsp = if_ -> rsp - 8; // 5. 포인터 1칸(8바이트) 크기만큼 스택 포인터 아래로 이동
+	memset(if_ -> rsp, 0, 8); // 6. C 규약상 argv 배열의 끝을 알리는 argv[1] = NULL (8바이트 0) 채우기
+	if_ -> rsp = if_ -> rsp - 8; // 7. argv[0] 포인터를 넣기 위해 스택 포인터를 8바이트 아래로 이동
+	memcpy(if_ -> rsp, &args_save, 8); // 8. argv[0] 자리에 아까 보관해 둔 문자열 주소(args_save) 복사
+	if_ -> R.rsi = if_ -> rsp; // 9. main()의 2번째 인자: argv 배열 시작 주소(현재 rsp)를 RSI 레지스터에 저장
+	if_ -> R.rdi = 1; // 10. main()의 1번째 인자: argc 값(인자 개수 1)을 RDI 레지스터에 저장
+	if_ -> rsp = if_ -> rsp - 8; // 11. 가짜 반환 주소(Fake Return Address)를 위한 8바이트 공간 확보
+	memset(if_ -> rsp, 0, 8); // 12. 함수 호출 프레임 규격을 맞추기 위해 반환 주소 자리에 8바이트 0 채우기
 
 	success = true;
 
