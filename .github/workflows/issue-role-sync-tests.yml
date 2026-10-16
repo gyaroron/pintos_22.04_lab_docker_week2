@@ -6,7 +6,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/issue-role-sync*.yml'
   push:
-    branches: [codex/issue-subissue-branch-names]
+    branches: [gyaroron/issue-subissue-branch-names]
     paths:
       - '.github/scripts/**'
       - '.github/workflows/issue-role-sync*.yml'
