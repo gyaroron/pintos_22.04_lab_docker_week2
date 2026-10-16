@@ -71,9 +71,8 @@ function updateParentTable(body, childNumber, assignees) {
     // Four cells: child number, title, assignee, branch. Replace only cell 3.
     const match = line.match(/^( {0,3}\|\s*#([1-9][0-9]*)\s*\|(?:\\\||[^|])*\|)([ \t]*)([^|]*?)([ \t]*)(\|.*)$/);
     if (!match || Number(match[2]) !== childNumber) return line;
-    const left = match[3] || ' ';
-    const right = match[5] || ' ';
-    return match[1] + left + value + right + match[6];
+    // Canonical cell padding keeps an empty cell stable across repeated runs.
+    return match[1] + ' ' + value + ' ' + match[6];
   });
   return body.slice(0, bounds.start) + middle + body.slice(bounds.end);
 }
