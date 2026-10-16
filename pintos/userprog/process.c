@@ -26,6 +26,7 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
+static volatile bool is_main_loop = false;
 
 /* General process initializer for initd and other process. */
 static void
@@ -204,6 +205,12 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+
+	while (!is_main_loop)
+	{
+		thread_yield();
+	}
+
 	return -1;
 }
 
@@ -215,6 +222,8 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+
+	is_main_loop = true;
 
 	process_cleanup ();
 }
@@ -416,6 +425,19 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+
+	if_ -> rsp = if_ -> rsp - 10; //if - interrupt frame
+	memcpy(if_ -> rsp, "args-none", 10);
+	uintptr_t args_save = if_ -> rsp;
+	if_ -> rsp = if_ -> rsp & ~7;
+	if_ -> rsp = if_ -> rsp - 8;
+	memset(if_ -> rsp, 0, 8);
+	if_ -> rsp = if_ -> rsp - 8;
+	memcpy(if_ -> rsp, &args_save, 8);
+	if_ -> R.rsi = if_ -> rsp;
+	if_ -> R.rdi = 1;
+	if_ -> rsp = if_ -> rsp - 8;
+	memset(if_ -> rsp, 0, 8);
 
 	success = true;
 
