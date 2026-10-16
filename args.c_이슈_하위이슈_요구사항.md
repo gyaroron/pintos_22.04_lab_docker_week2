@@ -94,8 +94,6 @@ test directory = C:\Users\V15_G3_ABA_2023\pintos_lab\pintos\tests\userprog
 
 - **학습 근거:** [System Calls](https://casys-kaist.github.io/pintos-kaist/project2/system_call.html)(2026-10-16 확인)의 관련 절 및 이 이슈의 고정 테스트 근거. 인자·출력·종료 요구와 System Call Details, exec, write, exit, wait 설명을 연결한 추천이다.
 
-- **학습 근거:** [System Calls](https://casys-kaist.github.io/pintos-kaist/project2/system_call.html)의 관련 절 및 이 이슈의 고정 테스트 근거. 인자·출력·종료 요구와 System Call Details, exec, write, exit, wait 설명을 연결한 추천이다.
-
 - 이 테스트에서 사용자 프로그램이 실제로 관찰하는 정보는 무엇인가?
 - 기대하는 출력 일부가 있어도 공식 PASS로 판단할 수 없는 경우는 무엇인가?
 - 이 테스트가 직접 검사하는 조건과 rsp·register·CPU 관련 심화 학습에서 따로 확인해야 할 내용을 구분할 수 있는가?
