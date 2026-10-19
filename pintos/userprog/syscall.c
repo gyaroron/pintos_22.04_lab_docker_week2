@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/init.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
@@ -43,6 +44,10 @@ syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
 	// TODO: Your implementation goes here.
 	switch (f -> R.rax)
 	{
+		case SYS_HALT:
+			power_off();
+			break;
+
 		case SYS_WRITE:
 			putbuf(f -> R.rsi, f -> R.rdx);
 			f -> R.rax = f -> R.rdx;
