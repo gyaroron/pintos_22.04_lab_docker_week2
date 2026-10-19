@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "filesys/filesys.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -46,6 +47,10 @@ syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
 	{
 		case SYS_HALT:
 			power_off();
+			break;
+
+		case SYS_CREATE:
+			f -> R.rax = filesys_create((const char *)f -> R.rdi, f -> R.rsi);
 			break;
 
 		case SYS_WRITE:
