@@ -7,6 +7,7 @@
 #include "threads/init.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
+#include "threads/mmu.h"
 #include "intrinsic.h"
 #include "filesys/filesys.h"
 
@@ -41,7 +42,7 @@ syscall_init (void) {
 
 /* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료www
+syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
 	// TODO: Your implementation goes here.
 	switch (f -> R.rax)
 	{
@@ -50,7 +51,15 @@ syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료www
 			break;
 
 		case SYS_CREATE:
-			f -> R.rax = filesys_create(f -> R.rdi, f -> R.rsi);
+			if (f -> R.rdi != NULL && f -> R.rdi < KERN_BASE && pml4_get_page(thread_current() -> pml4, f -> R.rdi) != NULL)
+			{
+				f -> R.rax = filesys_create(f -> R.rdi, f -> R.rsi);
+			}
+			else
+			{
+				printf("%s: exit(%d)\n", thread_current() -> name, -1);
+				thread_exit();
+			}
 			break;
 
 		case SYS_WRITE:
