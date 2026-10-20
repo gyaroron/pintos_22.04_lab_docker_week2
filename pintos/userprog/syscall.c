@@ -41,7 +41,7 @@ syscall_init (void) {
 
 /* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
+syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료www
 	// TODO: Your implementation goes here.
 	switch (f -> R.rax)
 	{
@@ -50,7 +50,7 @@ syscall_handler (struct intr_frame *f UNUSED) { // KAIST Document 자료
 			break;
 
 		case SYS_CREATE:
-			f -> R.rax = filesys_create((const char *)f -> R.rdi, f -> R.rsi);
+			f -> R.rax = filesys_create(f -> R.rdi, f -> R.rsi);
 			break;
 
 		case SYS_WRITE:
