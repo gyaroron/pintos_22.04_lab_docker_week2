@@ -1,0 +1,28 @@
+name: Test project status automation
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/project-status*.yml'
+  push:
+    branches: [gyaroron/project-status-automation]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/project-status*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test planners, pagination, and safe orchestration
+        run: node --test .github/scripts/tests/project-status-*.test.cjs .github/scripts/tests/sync-project-status.test.cjs
+      - name: Verify existing role-display behavior
+        run: node .github/scripts/tests/sync-issue-roles.test.cjs
