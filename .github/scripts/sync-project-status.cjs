@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const {
   selectLatestHumanMove, planAssigneeReplacement, planParentCompletions,
   parseAutomationMarker, upsertAutomationMarker,
+  ASSIGNMENT_POLICY,
 } = require('./project-status-core.cjs');
 const { createClient } = require('./project-status-client.cjs');
 const { updatePrincipal, reconcile: reconcileRoleDisplay, createClient: createRoleClient } = require('./sync-issue-roles.cjs');
@@ -31,6 +32,35 @@ function optionsFromEnvironment(env) {
 
 function nextState(state, projectId, now) {
   return state || { projectId, eventId: null, appliedAt: now, ignoredEventIds: [] };
+}
+
+function assigneeSelection(issue) {
+  const values = Array.isArray(issue.assignees) ? issue.assignees : issue.assignees?.nodes;
+  if (!Array.isArray(values)) throw new Error('Missing Issue Assignees for concurrency check');
+  return [...new Set(values.map(value => {
+    const login = typeof value === 'string' ? value : value?.login;
+    if (typeof login !== 'string' || !login) throw new Error('Invalid Issue Assignee for concurrency check');
+    return login.toLowerCase();
+  }))].sort();
+}
+
+function selectAssignmentEvent(events, { state, projectId, activationAt, currentStatus }) {
+  const selectorOptions = {
+    projectId, activationAt, lastEventId: state?.eventId || null,
+    ignoredEventIds: state?.ignoredEventIds || [],
+  };
+  const event = selectLatestHumanMove(events, selectorOptions);
+  if (event) return { event, migration: false };
+  if (!state?.eventId || state.assignmentPolicy === ASSIGNMENT_POLICY || currentStatus !== 'Todo') return { event: null, migration: false };
+  // A one-time repair is limited to the exact human Todo move already handled
+  // by the old policy. A later target-project event, even a Bot/automated move,
+  // invalidates that repair. Never replay an older human merely because the
+  // card currently happens to be Todo.
+  const latestHuman = selectLatestHumanMove(events, { ...selectorOptions, lastEventId: null });
+  const latestProjectEvent = events.filter(candidate =>
+    (candidate.projectId ?? candidate.project?.id) === projectId).at(-1);
+  const eligible = latestHuman?.id === state.eventId && latestHuman.status === 'Todo' && latestProjectEvent?.id === latestHuman.id;
+  return { event: eligible ? latestHuman : null, migration: eligible };
 }
 
 function resolveOwnMove(state, events, currentStatus) {
@@ -86,15 +116,14 @@ async function runSync(client, options, { log = console.log, now = () => new Dat
       let events = await client.getStatusEvents(issue.id);
       let resolved = resolveOwnMove(state, events, statusName(item));
       if (resolved.pending) { report.skipped.push({ issue: issue.number, reason: 'awaiting-self-event', details: resolved.reason }); continue; }
-      const provisionalEvent = selectLatestHumanMove(events, {
-        projectId: project.id, activationAt: options.activationAt,
-        lastEventId: resolved.state?.eventId || null, ignoredEventIds: resolved.state?.ignoredEventIds || [],
+      const provisional = selectAssignmentEvent(events, {
+        state: resolved.state, projectId: project.id, activationAt: options.activationAt, currentStatus: statusName(item),
       });
       // The Project snapshot already includes the body checkpoint. With no new
       // event and no recovered state to persist there is no Issue write to make,
       // so an extra REST read cannot improve write safety. Always inspect the
       // complete timeline; never infer no change from coarse Status timestamps.
-      if (!provisionalEvent && JSON.stringify(resolved.state) === JSON.stringify(state)) continue;
+      if (!provisional.event && JSON.stringify(resolved.state) === JSON.stringify(state)) continue;
       const current = await client.getIssue(issue.number);
       // Do not overwrite a checkpoint/body edited by another completed run.
       const currentState = parseAutomationMarker(current.body || '');
@@ -105,9 +134,8 @@ async function runSync(client, options, { log = console.log, now = () => new Dat
         if (resolved.pending) { report.skipped.push({ issue: issue.number, reason: 'awaiting-self-event', details: resolved.reason }); continue; }
       }
       state = resolved.state;
-      const event = selectLatestHumanMove(events, {
-        projectId: project.id, activationAt: options.activationAt,
-        lastEventId: state?.eventId || null, ignoredEventIds: state?.ignoredEventIds || [],
+      const { event, migration } = selectAssignmentEvent(events, {
+        state, projectId: project.id, activationAt: options.activationAt, currentStatus: statusName(item),
       });
       if (!event) {
         if (options.apply && JSON.stringify(state) !== JSON.stringify(currentState)) await saveState(issue.number, current, state);
@@ -115,23 +143,39 @@ async function runSync(client, options, { log = console.log, now = () => new Dat
       }
       if (!VALID_STATUS.has(event.status)) continue;
       const replacement = planAssigneeReplacement({ ...current, id: issue.id }, event);
-      if (!await client.isAssignable(event.actor.login)) throw new Error('Latest mover is not assignable to this repository');
-      report.assignments.push({ issue: issue.number, actor: event.actor.login, status: event.status, eventId: event.id });
+      const currentSelection = assigneeSelection(current);
+      if (migration && currentSelection.length && (currentSelection.length !== 1 || currentSelection[0] !== event.actor.login.toLowerCase())) {
+        // The old policy assigned the Todo mover. A different current choice is
+        // evidence of a later manual selection, not a legacy value to repair.
+        report.skipped.push({ issue: issue.number, reason: 'legacy-assignee-selection-preserved' }); continue;
+      }
+      if (replacement.assignees.length && !await client.isAssignable(event.actor.login)) throw new Error('Latest mover is not assignable to this repository');
+      report.assignments.push({ issue: issue.number, actor: event.actor.login, assignees: replacement.assignees, status: event.status, eventId: event.id, migration });
       if (!options.apply) continue;
       // Refresh the event list immediately before changing actual Assignees.
       events = await client.getStatusEvents(issue.id);
-      const newest = selectLatestHumanMove(events, {
-        projectId: project.id, activationAt: options.activationAt,
-        lastEventId: state?.eventId || null, ignoredEventIds: state?.ignoredEventIds || [],
+      const { event: newest } = selectAssignmentEvent(events, {
+        state, projectId: project.id, activationAt: options.activationAt, currentStatus: statusName(item),
       });
       if (!newest || newest.id !== event.id) {
         report.skipped.push({ issue: issue.number, reason: 'newer-move-arrived-retry-next-run' }); continue;
       }
       const latest = await client.getIssue(issue.number);
+      if (JSON.stringify(parseAutomationMarker(latest.body || '')) !== JSON.stringify(currentState)) {
+        report.skipped.push({ issue: issue.number, reason: 'checkpoint-changed-before-patch' }); continue;
+      }
       const checkpoint = {
-        ...nextState(state, project.id, now()), eventId: event.id, appliedAt: now(),
+        ...nextState(state, project.id, now()), eventId: event.id, appliedAt: now(), assignmentPolicy: ASSIGNMENT_POLICY,
       };
-      const body = upsertAutomationMarker(updatePrincipal(latest.body || '', [event.actor.login]), checkpoint);
+      if (JSON.stringify(assigneeSelection(latest)) !== JSON.stringify(currentSelection)) {
+        // A direct selection observed after this move takes precedence over
+        // that move. Acknowledge the event without sending an Assignees field,
+        // so the next poll cannot replay it and erase the newer choice.
+        const body = upsertAutomationMarker(updatePrincipal(latest.body || '', latest.assignees), checkpoint);
+        await client.patchIssue(issue.number, { body });
+        report.skipped.push({ issue: issue.number, reason: 'assignee-selection-preserved-event-checkpointed', eventCheckpointed: true }); continue;
+      }
+      const body = upsertAutomationMarker(updatePrincipal(latest.body || '', replacement.assignees), checkpoint);
       // REST PATCH replaces the entire assignee list atomically. No history of
       // the prior assignee is stored in our checkpoint or added to the body.
       await client.patchIssue(issue.number, { body, assignees: replacement.assignees });
@@ -232,7 +276,7 @@ async function main() {
   const displayClient = options.apply ? createRoleClient({ token: process.env.GH_TOKEN, repository: options.repository }) : undefined;
   const report = await runSync(client, options, { displayClient });
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-    `## Project status automation\n\n- Dry run: ${report.dryRun}\n- Planned mover assignments: ${report.assignments.length}\n- Applied mover assignments: ${report.appliedAssignments}\n- Planned parent completions: ${report.parentCompletions.length}\n- Closed parent Issues: ${report.closedParents}\n- Updated parent cards: ${report.updatedParentCards}\n- Errors: ${report.errors.length}\n`);
+    `## Project status automation\n\n- Dry run: ${report.dryRun}\n- Planned ownership updates: ${report.assignments.length}\n- Applied ownership updates: ${report.appliedAssignments}\n- Planned parent completions: ${report.parentCompletions.length}\n- Closed parent Issues: ${report.closedParents}\n- Updated parent cards: ${report.updatedParentCards}\n- Errors: ${report.errors.length}\n`);
   if (report.errors.length) process.exitCode = 1;
 }
 
