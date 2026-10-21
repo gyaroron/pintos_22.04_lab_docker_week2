@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { selectLatestHumanMove, planAssigneeReplacement, planParentCompletions, parseAutomationMarker, serializeAutomationMarker, upsertAutomationMarker, MAX_IGNORED_EVENTS } = require('../project-status-core.cjs');
+const { selectLatestHumanMove, planAssigneeReplacement, planParentCompletions, parseAutomationMarker, serializeAutomationMarker, upsertAutomationMarker, MAX_IGNORED_EVENTS, ASSIGNMENT_POLICY } = require('../project-status-core.cjs');
 
 const PROJECT = 'PVT_test10';
 const REPOSITORY = 'gyaroron/pintos_22.04_lab_docker_week2';
@@ -68,6 +68,21 @@ test('same assignee still returns checkpoint without unnecessary assignment', ()
   assert.equal(planned.eventId, 'E');
   assert.deepEqual(planned.assignees, ['jun']);
   assert.equal(planAssigneeReplacement(issue('I', ['jun']), event('E', 1)).changed, false);
+});
+test('a human Todo move plans complete unassignment and checkpoints an already empty list', () => {
+  const move = event('TODO', 1, { status: 'Todo' });
+  const replacement = planAssigneeReplacement(issue('I', [{ login: 'jun' }, { login: 'old' }]), move);
+  assert.deepEqual(replacement.assignees, []); assert.equal(replacement.changed, true);
+  const alreadyEmpty = planAssigneeReplacement(issue('I'), move);
+  assert.deepEqual(alreadyEmpty.assignees, []); assert.equal(alreadyEmpty.changed, false); assert.equal(alreadyEmpty.eventId, 'TODO');
+  const bad = { ...move, actor: { __typename: 'Bot', login: 'robot' } };
+  assert.throws(() => planAssigneeReplacement(issue('I'), bad), /human/);
+  assert.throws(() => planAssigneeReplacement(issue('I'), { ...move, actor: { __typename: 'User', login: 'robot[bot]' } }), /login/);
+});
+test('the other three human statuses retain exactly the latest mover', () => {
+  for (const status of ['In Progress', 'In Review', 'Done']) {
+    assert.deepEqual(planAssigneeReplacement(issue('I', ['older', 'old']), event('E', 1, { status })).assignees, ['jun']);
+  }
 });
 test('assignment rejects nonhuman events, incomplete assignees and dangerous logins', () => {
   assert.throws(() => planAssigneeReplacement(issue('I'), event('E', 1, { wasAutomated: true })), /human/);
@@ -183,6 +198,12 @@ test('hidden marker round-trip records only validated checkpoint state', () => {
   assert.deepEqual(parseAutomationMarker(`Issue text\n\n${marker}\n`), state);
   assert.equal(parseAutomationMarker('No marker'), null);
   assert.throws(() => serializeAutomationMarker({ ...state, oldAssignee: 'someone' }), /Unknown/);
+});
+test('the optional assignment policy extends old markers safely and rejects unknown policies', () => {
+  assert.equal(parseAutomationMarker(serializeAutomationMarker(markerState())).assignmentPolicy, undefined);
+  const state = { ...markerState(), assignmentPolicy: ASSIGNMENT_POLICY };
+  assert.deepEqual(parseAutomationMarker(serializeAutomationMarker(state)), state);
+  assert.throws(() => serializeAutomationMarker({ ...markerState(), assignmentPolicy: 'another-policy' }), /policy/);
 });
 test('baseline state, ignored IDs and crash-recovery own move survive round-trip', () => {
   const state = { ...markerState(), eventId: null, ignoredEventIds: ['own1', 'own2'], pendingOwnMove: { actorLogin: 'jun', previousStatus: 'Todo', status: 'Done', startedAt: '2026-10-21T05:00:59Z', priorLatestEventId: null } };

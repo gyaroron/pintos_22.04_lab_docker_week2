@@ -4,6 +4,7 @@
 const STATUSES = Object.freeze(['Todo', 'In Progress', 'In Review', 'Done']);
 const MARKER = 'project-status-automation:v1';
 const MAX_IGNORED_EVENTS = 200;
+const ASSIGNMENT_POLICY = 'todo-unassigned-v1';
 
 function opaqueId(value, label = 'id') {
   if (typeof value !== 'string' || !value.trim() || value.length > 256 || /[\s<>]/u.test(value)) {
@@ -83,8 +84,10 @@ function planAssigneeReplacement(issue, event) {
   if (!Array.isArray(current)) throw new Error('Issue assignees must be fully provided');
   if (issue.assignees?.pageInfo?.hasNextPage === true) throw new Error('Incomplete issue assignees');
   const currentLogin = typeof current[0] === 'string' ? current[0] : current[0]?.login;
-  const changed = current.length !== 1 || String(currentLogin).toLowerCase() !== login.toLowerCase();
-  return { issueId, eventId, projectId, assignees: [login], changed, status: statusOf(event) };
+  const status = statusOf(event);
+  const assignees = status === 'Todo' ? [] : [login];
+  const changed = status === 'Todo' ? current.length !== 0 : current.length !== 1 || String(currentLogin).toLowerCase() !== login.toLowerCase();
+  return { issueId, eventId, projectId, assignees, changed, status };
 }
 
 function repositoryOf(content) {
@@ -174,12 +177,16 @@ function planParentCompletions(items, nativeChildrenMap, { projectId, repository
 
 function validateMarkerState(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('Invalid automation marker state');
-  const allowed = ['projectId', 'eventId', 'appliedAt', 'ignoredEventIds', 'pendingOwnMove'];
+  const allowed = ['projectId', 'eventId', 'appliedAt', 'ignoredEventIds', 'pendingOwnMove', 'assignmentPolicy'];
   if (Object.keys(state).some(key => !allowed.includes(key))) throw new Error('Unknown automation marker property');
   opaqueId(state.projectId, 'marker projectId');
   if (state.eventId !== null) opaqueId(state.eventId, 'marker eventId');
   timestamp(state.appliedAt, 'marker appliedAt');
   const clean = { projectId: state.projectId, eventId: state.eventId, appliedAt: state.appliedAt };
+  if (state.assignmentPolicy !== undefined) {
+    if (state.assignmentPolicy !== ASSIGNMENT_POLICY) throw new Error('Unknown assignment policy');
+    clean.assignmentPolicy = state.assignmentPolicy;
+  }
   if (state.ignoredEventIds !== undefined) {
     if (!Array.isArray(state.ignoredEventIds) || state.ignoredEventIds.length > MAX_IGNORED_EVENTS) throw new Error('Invalid ignoredEventIds');
     const ids = state.ignoredEventIds.map(id => opaqueId(id, 'ignored event id'));
@@ -238,4 +245,4 @@ function upsertAutomationMarker(body, state) {
   return result;
 }
 
-module.exports = { STATUSES, MARKER, MAX_IGNORED_EVENTS, selectLatestHumanMove, planAssigneeReplacement, planParentCompletions, parseAutomationMarker, serializeAutomationMarker, upsertAutomationMarker };
+module.exports = { STATUSES, MARKER, MAX_IGNORED_EVENTS, ASSIGNMENT_POLICY, selectLatestHumanMove, planAssigneeReplacement, planParentCompletions, parseAutomationMarker, serializeAutomationMarker, upsertAutomationMarker };

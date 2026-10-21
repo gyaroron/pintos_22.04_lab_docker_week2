@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runSync, resolveOwnMove, optionsFromEnvironment, normalizeItem } = require('../sync-project-status.cjs');
-const { parseAutomationMarker, upsertAutomationMarker } = require('../project-status-core.cjs');
+const { parseAutomationMarker, upsertAutomationMarker, ASSIGNMENT_POLICY } = require('../project-status-core.cjs');
 
 const CUTOFF = '2026-10-21T10:00:00Z';
 const NOW = '2026-10-21T10:10:00Z';
@@ -128,7 +128,7 @@ test('repeat run is idempotent and a later human move overrides the checkpoint e
   await run(); const writes = state.patches.length;
   assert.equal((await run()).assignments.length, 0); assert.equal(state.patches.length, writes);
   state.events.I_1.push(event('E2', 'bob', 'Todo', { createdAt: '2026-10-21T10:07:00Z', previousStatus: 'In Progress' }));
-  await run(); assert.deepEqual(state.cards[0].content.assignees, ['bob']);
+  await run(); assert.deepEqual(state.cards[0].content.assignees, []);
   assert.equal(parseAutomationMarker(state.cards[0].content.body).eventId, 'E2');
   assert.equal((await run()).assignments.length, 0); assert.equal(state.patches.length, writes + 1);
 });
@@ -182,6 +182,210 @@ test('already sole mover Assignee still receives a checkpoint without preserving
   await run(); assert.deepEqual(state.cards[0].content.assignees, ['alice']);
   assert.equal(parseAutomationMarker(state.cards[0].content.body).eventId, 'E1');
   const size = state.patches.length; await run(); assert.equal(state.patches.length, size);
+});
+
+test('Todo clears actual Assignees and principal without assignability lookup, preserving reviewer and requirements', async () => {
+  const body = '- 주 담당자: @previous\n- 리뷰어: @chosen-reviewer\n\n## 요구사항\n그대로 유지';
+  const f = fixture({ cards: [card(1, 'Todo', 0, { body })], events: { I_1: [event('TODO', 'outside-mover', 'Todo')] }, assignable: false });
+  const report = await f.run();
+  assert.equal(report.errors.length, 0); assert.equal(report.appliedAssignments, 1);
+  assert.deepEqual(f.state.cards[0].content.assignees, []);
+  assert.match(f.state.cards[0].content.body, /^- 주 담당자:\n/m);
+  assert.match(f.state.cards[0].content.body, /- 리뷰어: @chosen-reviewer/);
+  assert.match(f.state.cards[0].content.body, /그대로 유지/);
+  assert.equal(f.state.calls.some(call => call.startsWith('assignable:')), false);
+  const checkpoint = parseAutomationMarker(f.state.cards[0].content.body);
+  assert.equal(checkpoint.eventId, 'TODO'); assert.equal(checkpoint.assignmentPolicy, ASSIGNMENT_POLICY);
+  const writes = f.state.patches.length; await f.run(); assert.equal(f.state.patches.length, writes);
+});
+
+test('an already empty Todo still checkpoints the event exactly once', async () => {
+  const f = fixture({ cards: [card(1, 'Todo', 0, { assignees: [] })], events: { I_1: [event('TODO', 'alice', 'Todo')] } });
+  await f.run(); assert.deepEqual(f.state.patches[0].patch.assignees, []);
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).assignmentPolicy, ASSIGNMENT_POLICY);
+  await f.run(); assert.equal(f.state.patches.length, 1);
+});
+
+test('Todo propagates an empty principal to the native parent table using existing display reconciliation', async () => {
+  const parentBody = '<!-- branch-naming-v2:start -->\n| #23 | 작업 | @previous | feature/18/23 |\n<!-- branch-naming-v2:end -->';
+  const f = fixture({ cards: [card(1, 'Todo', 1, { body: parentBody }), card(23, 'Todo')], children: { I_1: [23] }, events: { I_23: [event('TODO23', 'alice', 'Todo')] } });
+  const restIssue = number => {
+    const item = f.state.cards.find(candidate => candidate.content.number === number);
+    return { number, body: item.content.body, assignees: item.content.assignees.map(login => ({ login })) };
+  };
+  const displayClient = { async request(path, options = {}) {
+    if (path.startsWith('/issues?')) return f.state.cards.map(item => restIssue(item.content.number));
+    if (path === '/issues/23/parent') return { number: 1 };
+    const match = /^\/issues\/(1|23)$/.exec(path); assert.ok(match, path);
+    const number = Number(match[1]);
+    if (options.method === 'PATCH') f.state.cards.find(item => item.content.number === number).content.body = options.body.body;
+    return restIssue(number);
+  } };
+  const report = await runSync(f.client, baseOptions, { now: () => NOW, log: () => {}, displayClient });
+  assert.equal(report.errors.length, 0); assert.deepEqual(f.state.cards[1].content.assignees, []);
+  assert.match(f.state.cards[0].content.body, /\| #23 \| 작업 \|  \| feature\/18\/23 \|/);
+});
+
+function legacyTodoFixture({ move, events, stateChanges = {}, status = 'Todo', assignees = ['gyaroron'] } = {}) {
+  const legacyMove = move || event('PVTISC_lADOVKx8Is8AAAABXmtv-c8AAAAH380k0Q', 'gyaroron', 'Todo', { previousStatus: 'In Progress' });
+  const body = upsertAutomationMarker('- 주 담당자: @gyaroron\n- 리뷰어:', {
+    projectId: PROJECT, eventId: legacyMove.id, appliedAt: NOW, ignoredEventIds: [], ...stateChanges,
+  });
+  return fixture({ cards: [card(23, status, 0, { body, assignees })], events: { I_23: events || [legacyMove] } });
+}
+
+test('the already-processed legacy Todo event is repaired once, then later manual Assignee choices remain intact', async () => {
+  const f = legacyTodoFixture();
+  const report = await f.run();
+  assert.equal(report.errors.length, 0); assert.equal(report.appliedAssignments, 1);
+  assert.equal(report.assignments[0].migration, true);
+  assert.deepEqual(f.state.cards[0].content.assignees, []);
+  const checkpoint = parseAutomationMarker(f.state.cards[0].content.body);
+  assert.equal(checkpoint.eventId, 'PVTISC_lADOVKx8Is8AAAABXmtv-c8AAAAH380k0Q');
+  assert.equal(checkpoint.assignmentPolicy, ASSIGNMENT_POLICY);
+  f.state.cards[0].content.assignees = ['manual-choice'];
+  f.state.cards[0].content.body = f.state.cards[0].content.body.replace('- 주 담당자:', '- 주 담당자: @manual-choice');
+  const writes = f.state.patches.length;
+  await f.run();
+  assert.deepEqual(f.state.cards[0].content.assignees, ['manual-choice']);
+  assert.equal(f.state.patches.length, writes);
+});
+
+test('an already empty legacy Todo is policy-stamped once without imposing a permanent no-Assignee rule', async () => {
+  const f = legacyTodoFixture({ assignees: [] });
+  await f.run(); assert.equal(f.state.patches.length, 1);
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).assignmentPolicy, ASSIGNMENT_POLICY);
+  await f.run(); assert.equal(f.state.patches.length, 1);
+});
+
+test('legacy Todo migration preserves a different current Assignee selection without stamping over it', async () => {
+  for (const assignees of [['bob'], ['gyaroron', 'bob']]) {
+    const f = legacyTodoFixture({ assignees });
+    const report = await f.run();
+    assert.equal(report.appliedAssignments, 0); assert.equal(f.state.patches.length, 0);
+    assert.deepEqual(f.state.cards[0].content.assignees, assignees);
+    assert.ok(report.skipped.some(skip => skip.reason === 'legacy-assignee-selection-preserved'));
+    assert.equal(parseAutomationMarker(f.state.cards[0].content.body).assignmentPolicy, undefined);
+    await f.run(); assert.equal(f.state.patches.length, 0);
+  }
+});
+
+test('an Assignee changed between current and final Issue reads aborts legacy repair and remains preserved on the next poll', async () => {
+  const f = legacyTodoFixture();
+  const getIssue = f.client.getIssue;
+  f.client.getIssue = async number => {
+    if (f.state.issueReads.get(number) === 1) f.state.cards[0].content.assignees = ['bob'];
+    return getIssue(number);
+  };
+  const report = await f.run();
+  assert.equal(report.appliedAssignments, 0); assert.equal(f.state.patches.length, 1);
+  assert.deepEqual(Object.keys(f.state.patches[0].patch), ['body']);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+  assert.match(f.state.cards[0].content.body, /- 주 담당자: @bob/);
+  assert.ok(report.skipped.some(skip => skip.reason === 'assignee-selection-preserved-event-checkpointed' && skip.eventCheckpointed));
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).assignmentPolicy, ASSIGNMENT_POLICY);
+  await f.run();
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+  assert.equal(f.state.patches.length, 1);
+});
+
+test('a checkpoint changed in the final Issue read is never overwritten by a stale migration', async () => {
+  const f = legacyTodoFixture();
+  const getIssue = f.client.getIssue;
+  f.client.getIssue = async number => {
+    if (f.state.issueReads.get(number) === 1) {
+      const body = f.state.cards[0].content.body;
+      f.state.cards[0].content.body = upsertAutomationMarker(body, { ...parseAutomationMarker(body), assignmentPolicy: ASSIGNMENT_POLICY });
+      f.state.cards[0].content.assignees = ['bob'];
+    }
+    return getIssue(number);
+  };
+  const report = await f.run();
+  assert.equal(report.appliedAssignments, 0); assert.equal(f.state.patches.length, 0);
+  assert.ok(report.skipped.some(skip => skip.reason === 'checkpoint-changed-before-patch'));
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).assignmentPolicy, ASSIGNMENT_POLICY);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+});
+
+test('fresh normal moves acknowledge concurrent selections without sending Assignees, while ordering alone does not block a write', async () => {
+  const changed = fixture({ events: { I_1: [event()] }, onIssue(memory, number, count) {
+    if (count === 2) memory.cards[0].content.assignees = ['bob'];
+  } });
+  const report = await changed.run();
+  assert.equal(report.appliedAssignments, 0); assert.equal(changed.state.patches.length, 1);
+  assert.deepEqual(Object.keys(changed.state.patches[0].patch), ['body']);
+  assert.deepEqual(changed.state.cards[0].content.assignees, ['bob']);
+  assert.ok(report.skipped.some(skip => skip.reason === 'assignee-selection-preserved-event-checkpointed'));
+  await changed.run(); assert.equal(changed.state.patches.length, 1);
+  assert.deepEqual(changed.state.cards[0].content.assignees, ['bob']);
+  const reordered = fixture({ events: { I_1: [event()] }, onIssue(memory, number, count) {
+    if (count === 2) memory.cards[0].content.assignees.reverse();
+  } });
+  assert.equal((await reordered.run()).appliedAssignments, 1);
+  assert.deepEqual(reordered.state.cards[0].content.assignees, ['alice']);
+});
+
+test('a new Todo move preserves an observed later Bob selection across polls, then the next real move applies normally', async () => {
+  const f = fixture({ events: { I_1: [event('NEW_TODO', 'alice', 'Todo')] }, onIssue(memory, number, count) {
+    if (count === 2) memory.cards[0].content.assignees = ['bob'];
+  } });
+  const first = await f.run();
+  assert.equal(first.appliedAssignments, 0); assert.equal(f.state.patches.length, 1);
+  assert.deepEqual(Object.keys(f.state.patches[0].patch), ['body']);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+  assert.match(f.state.cards[0].content.body, /- 주 담당자: @bob/);
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).eventId, 'NEW_TODO');
+  const second = await f.run();
+  assert.equal(second.appliedAssignments, 0); assert.equal(f.state.patches.length, 1);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+  f.state.events.I_1.push(event('NEXT_PROGRESS', 'carol', 'In Progress', { createdAt: '2026-10-21T10:06:00Z' }));
+  const third = await f.run();
+  assert.equal(third.appliedAssignments, 1);
+  assert.deepEqual(f.state.patches[1].patch.assignees, ['carol']);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['carol']);
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).eventId, 'NEXT_PROGRESS');
+});
+
+test('legacy migration excludes historical, automated, Bot, ignored, different-current-status and later-status events', async () => {
+  const legacy = event('LEGACY', 'gyaroron', 'Todo');
+  const cases = [
+    { move: { ...legacy, createdAt: '2026-10-21T09:59:59Z' } },
+    { move: { ...legacy, wasAutomated: true } },
+    { move: { ...legacy, actor: { __typename: 'Bot', login: 'github-project-automation' } } },
+    { stateChanges: { ignoredEventIds: ['LEGACY'] }, move: legacy },
+    { status: 'In Progress', move: legacy },
+    { move: legacy, events: [legacy, event('BOT_LATER', 'github-project-automation', 'Todo', { createdAt: '2026-10-21T10:06:00Z', actor: { __typename: 'Bot', login: 'github-project-automation' } })] },
+    { move: legacy, events: [legacy, event('AUTO_LATER', 'gyaroron', 'Todo', { createdAt: '2026-10-21T10:06:00Z', wasAutomated: true })] },
+    { move: legacy, events: [legacy, event('OTHER_STATUS_LATER', 'gyaroron', 'Blocked', { createdAt: '2026-10-21T10:06:00Z' })] },
+    { move: legacy, events: [legacy, event('BLANK_STATUS_LATER', 'gyaroron', '', { createdAt: '2026-10-21T10:06:00Z' })] },
+  ];
+  for (const scenario of cases) {
+    const f = legacyTodoFixture(scenario); const report = await f.run();
+    assert.equal(report.appliedAssignments, 0, JSON.stringify(scenario));
+    assert.equal(f.state.patches.length, 0, JSON.stringify(scenario));
+  }
+});
+
+test('a later human move supersedes legacy migration and keeps the new single mover', async () => {
+  const legacy = event('LEGACY', 'gyaroron', 'Todo');
+  const f = legacyTodoFixture({ move: legacy, status: 'In Review', events: [legacy, event('NEW', 'bob', 'In Review', { createdAt: '2026-10-21T10:06:00Z' })] });
+  const report = await f.run();
+  assert.equal(report.assignments[0].migration, false);
+  assert.deepEqual(f.state.cards[0].content.assignees, ['bob']);
+  assert.equal(parseAutomationMarker(f.state.cards[0].content.body).eventId, 'NEW');
+});
+
+test('legacy repair rechecks the timeline and aborts if a later automatic event appears', async () => {
+  const f = legacyTodoFixture();
+  const getEvents = f.client.getStatusEvents;
+  f.client.getStatusEvents = async id => {
+    const result = await getEvents(id);
+    if (f.state.eventReads.get(id) === 2) return [...result, event('LATER', 'gyaroron', 'Todo', { createdAt: '2026-10-21T10:06:00Z', wasAutomated: true })];
+    return result;
+  };
+  const report = await f.run();
+  assert.equal(report.appliedAssignments, 0); assert.equal(f.state.patches.length, 0);
+  assert.ok(report.skipped.some(skip => skip.reason === 'newer-move-arrived-retry-next-run'));
 });
 
 test('a newer status event arriving before Assignee PATCH skips the stale actor', async () => {
