@@ -1,0 +1,45 @@
+name: Sync project status and ownership
+
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  issues:
+    types: [opened, closed, reopened]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply verified changes (false previews only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+# Use the same lock as the existing issue-body display workflow.
+concurrency:
+  group: issue-role-sync-${{ github.repository }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || vars.PROJECT_AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted default-branch automation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Reconcile project events and native sub-issues
+        env:
+          PROJECT_AUTOMATION_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PROJECT_OWNER: gyaroron
+          PROJECT_NUMBER: '10'
+          PROJECT_AUTOMATION_START_AT: ${{ vars.PROJECT_AUTOMATION_START_AT }}
+          PROJECT_CLOSE_PARENT: ${{ vars.PROJECT_CLOSE_PARENT || 'true' }}
+          APPLY_CHANGES: ${{ github.event_name == 'workflow_dispatch' && inputs.apply || github.event_name != 'workflow_dispatch' && vars.PROJECT_AUTOMATION_ENABLED == 'true' }}
+        run: node .github/scripts/sync-project-status.cjs
